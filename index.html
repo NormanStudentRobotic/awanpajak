@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AwanPajak – Cloud Tax Calculator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>AwanPajak</h1>
+    <p>Kalkulator Pajak Berbasis Cloud</p>
+
+    <div class="card">
+      <h2>Hitung PPN (11%)</h2>
+      <input id="ppn-price" type="number" placeholder="Harga barang (Rp)" />
+      <button id="btn-ppn">Hitung</button>
+      <div id="ppn-result"></div>
+    </div>
+
+    <div class="card">
+      <h2>Hitung PPh (sederhana)</h2>
+      <input id="pph-income" type="number" placeholder="Penghasilan tahunan (Rp)" />
+      <button id="btn-pph">Hitung</button>
+      <div id="pph-result"></div>
+    </div>
+  </div>
+
+<script>
+async function callAPI(body) {
+  const res = await fetch("/api/tax", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  return res.json();
+}
+
+document.getElementById("btn-ppn").onclick = async () => {
+  const price = Number(document.getElementById("ppn-price").value);
+  const data = await callAPI({ type: "ppn", payload: { price } });
+  document.getElementById("ppn-result").textContent =
+    `PPN: Rp${data.tax} | Total: Rp${data.total}`;
+};
+
+document.getElementById("btn-pph").onclick = async () => {
+  const annualIncome = Number(document.getElementById("pph-income").value);
+  const data = await callAPI({ type: "pph21", payload: { annualIncome } });
+  document.getElementById("pph-result").textContent =
+    `Pajak Tahunan: Rp${data.taxAnnual} | Pajak Bulanan: Rp${data.taxMonthly}`;
+};
+</script>
+</body>
+</html>

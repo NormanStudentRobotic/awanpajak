@@ -1,0 +1,39 @@
+body {
+  font-family: Arial, sans-serif;
+  background: #f6f7fb;
+  margin: 0;
+  padding: 20px;
+}
+.container {
+  max-width: 600px;
+  margin: auto;
+}
+h1 {
+  text-align: center;
+}
+.card {
+  background: #fff;
+  padding: 20px;
+  margin: 15px 0;
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+input {
+  width: 100%;
+  padding: 8px;
+  margin: 8px 0;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+button {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 5px;
+  background: #111827;
+  color: white;
+  cursor: pointer;
+}
+#ppn-result, #pph-result {
+  margin-top: 10px;
+  font-weight: bold;
+}
