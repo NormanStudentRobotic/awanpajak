@@ -5,50 +5,141 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AwanPajak – Cloud Tax Calculator</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    .card { background:#fff; padding:20px; border-radius:12px; box-shadow:0 4px 16px rgba(0,0,0,.08); }
+    .grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    label { display:block; font-size:14px; margin-top:8px; color:#374151 }
+    input, select { width:100%; padding:10px; border:1px solid #e5e7eb; border-radius:8px; font-size:15px }
+    button { margin-top:12px; padding:10px 14px; border:none; border-radius:8px; background:#111827; color:#fff; font-size:15px; cursor:pointer }
+    .result { margin-top:12px; padding:10px; background:#f3f4f6; border-radius:8px; min-height:22px }
+    .hint { color:#6b7280; font-size:12px; margin-top:4px }
+    .hidden { display:none }
+    .container { max-width:720px; margin: 24px auto; padding: 0 16px; }
+    h1 { text-align:center; margin-bottom:4px }
+    p.subtitle { text-align:center; color:#6b7280; margin-top:0 }
+  </style>
 </head>
 <body>
   <div class="container">
     <h1>AwanPajak</h1>
-    <p>Kalkulator Pajak Berbasis Cloud</p>
+    <p class="subtitle">Kalkulator Pajak berbasis Cloud (Serverless)</p>
 
     <div class="card">
-      <h2>Hitung PPN (11%)</h2>
-      <input id="ppn-price" type="number" placeholder="Harga barang (Rp)" />
-      <button id="btn-ppn">Hitung</button>
-      <div id="ppn-result"></div>
-    </div>
+      <label>Jenis Perhitungan Pajak</label>
+      <select id="taxType" aria-label="Jenis pajak">
+        <option value="ppn">PPN</option>
+        <option value="pph21">PPh (simulasi progresif)</option>
+      </select>
 
-    <div class="card">
-      <h2>Hitung PPh (sederhana)</h2>
-      <input id="pph-income" type="number" placeholder="Penghasilan tahunan (Rp)" />
-      <button id="btn-pph">Hitung</button>
-      <div id="pph-result"></div>
+      <div id="ppnFields" class="ppn-fields">
+        <div class="grid">
+          <div>
+            <label>Harga (Rp)</label>
+            <input id="ppn-price" type="number" placeholder="contoh: 100000" />
+          </div>
+          <div>
+            <label>Tarif PPN (opsional, 0.11 = 11%)</label>
+            <input id="ppn-rate" type="number" step="0.01" placeholder="kosongkan untuk 11%" />
+          </div>
+        </div>
+        <p class="hint">Default tarif PPN: 11%.</p>
+      </div>
+
+      <div id="pphFields" class="pph-fields hidden">
+        <div class="grid">
+          <div>
+            <label>Penghasilan Bruto Tahunan (Rp)</label>
+            <input id="pph-income" type="number" placeholder="contoh: 120000000" />
+          </div>
+          <div>
+            <label>PTKP (opsional, default 54.000.000)</label>
+            <input id="pph-ptkp" type="number" placeholder="54000000" />
+          </div>
+        </div>
+        <p class="hint">Perhitungan PPh disederhanakan untuk demo (bukan nasihat pajak resmi).</p>
+      </div>
+
+      <button id="btn-calc">Hitung</button>
+      <div id="result" class="result">—</div>
     </div>
   </div>
 
 <script>
+const $ = (s) => document.querySelector(s);
+const taxTypeEl = $('#taxType');
+const ppnFields = $('#ppnFields');
+const pphFields = $('#pphFields');
+const resultEl = $('#result');
+
+function toggleFields() {
+  const type = taxTypeEl.value;
+  if (type === 'ppn') {
+    ppnFields.classList.remove('hidden');
+    pphFields.classList.add('hidden');
+  } else {
+    pphFields.classList.remove('hidden');
+    ppnFields.classList.add('hidden');
+  }
+}
+taxTypeEl.addEventListener('change', toggleFields);
+toggleFields();
+
 async function callAPI(body) {
-  const res = await fetch("/api/tax", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  const res = await fetch('/api/tax', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
     body: JSON.stringify(body)
   });
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Server error');
+  return data;
 }
 
-document.getElementById("btn-ppn").onclick = async () => {
-  const price = Number(document.getElementById("ppn-price").value);
-  const data = await callAPI({ type: "ppn", payload: { price } });
-  document.getElementById("ppn-result").textContent =
-    `PPN: Rp${data.tax} | Total: Rp${data.total}`;
-};
+function fmtIDR(n) {
+  return (n ?? 0).toLocaleString('id-ID');
+}
 
-document.getElementById("btn-pph").onclick = async () => {
-  const annualIncome = Number(document.getElementById("pph-income").value);
-  const data = await callAPI({ type: "pph21", payload: { annualIncome } });
-  document.getElementById("pph-result").textContent =
-    `Pajak Tahunan: Rp${data.taxAnnual} | Pajak Bulanan: Rp${data.taxMonthly}`;
-};
+$('#btn-calc').addEventListener('click', async () => {
+  resultEl.textContent = 'Menghitung…';
+  try {
+    const type = taxTypeEl.value;
+
+    if (type === 'ppn') {
+      const price = Number($('#ppn-price').value);
+      const rateStr = $('#ppn-rate').value;
+      const rate = rateStr ? Number(rateStr) : undefined;
+      if (!Number.isFinite(price) || price < 0) {
+        resultEl.textContent = 'Gagal: Harga tidak valid';
+        return;
+      }
+      const data = await callAPI({ type: 'ppn', payload: { price, rate } });
+      resultEl.textContent = `Harga: Rp${fmtIDR(data.price ?? price)} | PPN: Rp${fmtIDR(data.tax)} | Total: Rp${fmtIDR(data.total)} (tarif ${(data.rate ?? (rate ?? 0.11))*100}%)`;
+      return;
+    }
+
+    if (type === 'pph21') {
+      const annualIncome = Number($('#pph-income').value);
+      const ptkpStr = $('#pph-ptkp').value;
+      const ptkp = ptkpStr ? Number(ptkpStr) : undefined;
+      if (!Number.isFinite(annualIncome) || annualIncome < 0) {
+        resultEl.textContent = 'Gagal: Penghasilan tidak valid';
+        return;
+      }
+      const data = await callAPI({ type: 'pph21', payload: { annualIncome, ptkp } });
+      resultEl.innerHTML = `
+        PKP (taxable): <b>Rp${fmtIDR(data.taxable)}</b><br/>
+        Pajak Tahunan: <b>Rp${fmtIDR(data.taxAnnual)}</b><br/>
+        Pajak Bulanan (approx): <b>Rp${fmtIDR(data.taxMonthly)}</b><br/>
+        Est. Take Home (per bulan): <b>Rp${fmtIDR(data.takeHomeMonthly)}</b>
+      `;
+      return;
+    }
+
+    resultEl.textContent = 'Gagal: Jenis pajak tidak dikenali';
+  } catch (e) {
+    resultEl.textContent = 'Gagal: ' + e.message;
+  }
+});
 </script>
 </body>
 </html>
