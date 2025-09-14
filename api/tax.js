@@ -79,5 +79,4 @@ export default function handler(req, res) {
     return res.status(500).json({ error: 'Server error' });
   }
 }
-
 function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }

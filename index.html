@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AwanPajak – Cloud Tax Calculator</title>
+  <title>AwanPajak – Cloud Tax Calculator (Auth)</title>
   <link rel="stylesheet" href="style.css" />
   <style>
     .card { background:#fff; padding:20px; border-radius:12px; box-shadow:0 4px 16px rgba(0,0,0,.08); }
@@ -14,17 +14,189 @@
     .result { margin-top:12px; padding:10px; background:#f3f4f6; border-radius:8px; min-height:22px }
     .hint { color:#6b7280; font-size:12px; margin-top:4px }
     .hidden { display:none }
-    .container { max-width:720px; margin: 24px auto; padding: 0 16px; }
+    .container { max-width:820px; margin: 24px auto; padding: 0 16px; }
     h1 { text-align:center; margin-bottom:4px }
     p.subtitle { text-align:center; color:#6b7280; margin-top:0 }
+    .row { display:flex; gap:12px; flex-wrap:wrap }
+    .w-half { flex:1 1 280px }
+    .muted { color:#6b7280; font-size:12px }
+    .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px }
+    .userbox { font-size:14px }
   </style>
+  <script type="module">
+    const firebaseConfig = {
+      apiKey: "AIzaSyA-Gve2lH2Hiqxf8f8O68XVM55zyZrzzfk",
+      authDomain: "awanpajak-d84e3.firebaseapp.com",
+      projectId: "awanpajak-d84e3",
+      storageBucket: "awanpajak-d84e3.firebasestorage.app",
+	  messagingSenderId: "127279140899",
+	  appId: "1:127279140899:web:9c2335aeedde50b7cc6196",
+	  measurementId: "G-QGC46KP81H"
+    };
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
+    import {
+      getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
+      signInWithEmailAndPassword, signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    const $ = (s) => document.querySelector(s);
+    const fmtIDR = (n) => (n ?? 0).toLocaleString('id-ID');
+
+    const authSection = () => $('#auth-section');
+    const appSection = () => $('#app-section');
+    const emailEl = () => $('#email');
+    const passEl = () => $('#password');
+    const userBox = () => $('#userbox');
+    const signoutBtn = () => $('#btn-signout');
+
+    const taxTypeEl = () => $('#taxType');
+    const ppnFields = () => $('#ppnFields');
+    const pphFields = () => $('#pphFields');
+    const resultEl = () => $('#result');
+
+    function toggleTaxFields() {
+      const type = taxTypeEl().value;
+      if (type === 'ppn') {
+        ppnFields().classList.remove('hidden');
+        pphFields().classList.add('hidden');
+      } else {
+        pphFields().classList.remove('hidden');
+        ppnFields().classList.add('hidden');
+      }
+    }
+
+    async function callAPI(body) {
+      const res = await fetch('/api/tax', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Server error');
+      return data;
+    }
+
+    function bindAppEvents() {
+      taxTypeEl().addEventListener('change', toggleTaxFields);
+      toggleTaxFields();
+
+      $('#btn-calc').addEventListener('click', async () => {
+        resultEl().textContent = 'Menghitung…';
+        try {
+          const type = taxTypeEl().value;
+
+          if (type === 'ppn') {
+            const price = Number($('#ppn-price').value);
+            const rateStr = $('#ppn-rate').value;
+            const rate = rateStr ? Number(rateStr) : undefined;
+            if (!Number.isFinite(price) || price < 0) {
+              resultEl().textContent = 'Gagal: Harga tidak valid';
+              return;
+            }
+            const data = await callAPI({ type: 'ppn', payload: { price, rate } });
+            resultEl().textContent =
+              `Harga: Rp${fmtIDR(data.price ?? price)} | PPN: Rp${fmtIDR(data.tax)} | Total: Rp${fmtIDR(data.total)} (tarif ${(data.rate ?? (rate ?? 0.11))*100}%)`;
+            return;
+          }
+
+          if (type === 'pph21') {
+            const annualIncome = Number($('#pph-income').value);
+            const ptkpStr = $('#pph-ptkp').value;
+            const ptkp = ptkpStr ? Number(ptkpStr) : undefined;
+            if (!Number.isFinite(annualIncome) || annualIncome < 0) {
+              resultEl().textContent = 'Gagal: Penghasilan tidak valid';
+              return;
+            }
+            const data = await callAPI({ type: 'pph21', payload: { annualIncome, ptkp } });
+            resultEl().innerHTML = `
+              PKP (taxable): <b>Rp${fmtIDR(data.taxable)}</b><br/>
+              Pajak Tahunan: <b>Rp${fmtIDR(data.taxAnnual)}</b><br/>
+              Pajak Bulanan (approx): <b>Rp${fmtIDR(data.taxMonthly)}</b><br/>
+              Est. Take Home (per bulan): <b>Rp${fmtIDR(data.takeHomeMonthly)}</b>
+            `;
+            return;
+          }
+
+          resultEl().textContent = 'Gagal: Jenis pajak tidak dikenali';
+        } catch (e) {
+          resultEl().textContent = 'Gagal: ' + e.message;
+        }
+      });
+    }
+
+    $('#btn-signup').addEventListener('click', async () => {
+      const email = emailEl().value.trim();
+      const password = passEl().value;
+      try {
+        await createUserWithEmailAndPassword(auth, email, password);
+        alert('Akun berhasil dibuat. Kamu sekarang login.');
+      } catch (e) {
+        alert('Sign up gagal: ' + (e?.message || e));
+      }
+    });
+
+    $('#btn-login').addEventListener('click', async () => {
+      const email = emailEl().value.trim();
+      const password = passEl().value;
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch (e) {
+        alert('Login gagal: ' + (e?.message || e));
+      }
+    });
+
+    signoutBtn().addEventListener('click', async () => {
+      await signOut(auth);
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        authSection().classList.add('hidden');
+        appSection().classList.remove('hidden');
+        userBox().textContent = `Login sebagai: ${user.email}`;
+        if (!window.__appBound) { bindAppEvents(); window.__appBound = true; }
+      } else {
+        authSection().classList.remove('hidden');
+        appSection().classList.add('hidden');
+        userBox().textContent = '';
+      }
+    });
+  </script>
 </head>
 <body>
   <div class="container">
     <h1>AwanPajak</h1>
-    <p class="subtitle">Kalkulator Pajak berbasis Cloud (Serverless)</p>
+    <p class="subtitle">Kalkulator Pajak berbasis Cloud (Login + Create Account)</p>
 
-    <div class="card">
+    <div id="auth-section" class="card">
+      <h2>Masuk / Daftar</h2>
+      <div class="row">
+        <div class="w-half">
+          <label>Email</label>
+          <input id="email" type="email" placeholder="nama@email.com" />
+        </div>
+        <div class="w-half">
+          <label>Password</label>
+          <input id="password" type="password" placeholder="********" />
+        </div>
+      </div>
+      <div class="row">
+        <button id="btn-login">Login</button>
+        <button id="btn-signup" style="background:#0ea5e9">Create Account</button>
+      </div>
+      <p class="muted">Catatan: Demo; email/password dikelola Firebase Auth.</p>
+    </div>
+
+    <div id="app-section" class="card hidden">
+      <div class="topbar">
+        <div id="userbox" class="userbox"></div>
+        <button id="btn-signout" style="background:#ef4444">Logout</button>
+      </div>
+
       <label>Jenis Perhitungan Pajak</label>
       <select id="taxType" aria-label="Jenis pajak">
         <option value="ppn">PPN</option>
@@ -63,83 +235,5 @@
       <div id="result" class="result">—</div>
     </div>
   </div>
-
-<script>
-const $ = (s) => document.querySelector(s);
-const taxTypeEl = $('#taxType');
-const ppnFields = $('#ppnFields');
-const pphFields = $('#pphFields');
-const resultEl = $('#result');
-
-function toggleFields() {
-  const type = taxTypeEl.value;
-  if (type === 'ppn') {
-    ppnFields.classList.remove('hidden');
-    pphFields.classList.add('hidden');
-  } else {
-    pphFields.classList.remove('hidden');
-    ppnFields.classList.add('hidden');
-  }
-}
-taxTypeEl.addEventListener('change', toggleFields);
-toggleFields();
-
-async function callAPI(body) {
-  const res = await fetch('/api/tax', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify(body)
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Server error');
-  return data;
-}
-
-function fmtIDR(n) {
-  return (n ?? 0).toLocaleString('id-ID');
-}
-
-$('#btn-calc').addEventListener('click', async () => {
-  resultEl.textContent = 'Menghitung…';
-  try {
-    const type = taxTypeEl.value;
-
-    if (type === 'ppn') {
-      const price = Number($('#ppn-price').value);
-      const rateStr = $('#ppn-rate').value;
-      const rate = rateStr ? Number(rateStr) : undefined;
-      if (!Number.isFinite(price) || price < 0) {
-        resultEl.textContent = 'Gagal: Harga tidak valid';
-        return;
-      }
-      const data = await callAPI({ type: 'ppn', payload: { price, rate } });
-      resultEl.textContent = `Harga: Rp${fmtIDR(data.price ?? price)} | PPN: Rp${fmtIDR(data.tax)} | Total: Rp${fmtIDR(data.total)} (tarif ${(data.rate ?? (rate ?? 0.11))*100}%)`;
-      return;
-    }
-
-    if (type === 'pph21') {
-      const annualIncome = Number($('#pph-income').value);
-      const ptkpStr = $('#pph-ptkp').value;
-      const ptkp = ptkpStr ? Number(ptkpStr) : undefined;
-      if (!Number.isFinite(annualIncome) || annualIncome < 0) {
-        resultEl.textContent = 'Gagal: Penghasilan tidak valid';
-        return;
-      }
-      const data = await callAPI({ type: 'pph21', payload: { annualIncome, ptkp } });
-      resultEl.innerHTML = `
-        PKP (taxable): <b>Rp${fmtIDR(data.taxable)}</b><br/>
-        Pajak Tahunan: <b>Rp${fmtIDR(data.taxAnnual)}</b><br/>
-        Pajak Bulanan (approx): <b>Rp${fmtIDR(data.taxMonthly)}</b><br/>
-        Est. Take Home (per bulan): <b>Rp${fmtIDR(data.takeHomeMonthly)}</b>
-      `;
-      return;
-    }
-
-    resultEl.textContent = 'Gagal: Jenis pajak tidak dikenali';
-  } catch (e) {
-    resultEl.textContent = 'Gagal: ' + e.message;
-  }
-});
-</script>
 </body>
 </html>
