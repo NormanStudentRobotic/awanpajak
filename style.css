@@ -1,11 +1,6 @@
-:root { font-family: system-ui, Arial, sans-serif; }
-body { margin: 0; background: #f6f7fb; }
-.container { max-width: 820px; margin: 40px auto; padding: 0 16px; }
-h1 { margin: 0 0 6px; font-size: 28px; }
-.subtitle { color: #6b7280; margin: 0 0 20px; text-align:center; }
-.card { background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.06); margin-bottom: 16px; }
-label { display: block; margin: 10px 0; }
-input, select { width: 100%; padding: 10px; border: 1px solid #e5e7eb; border-radius: 10px; font-size: 16px; background:#fff; }
-button { margin-top: 10px; padding: 10px 14px; border-radius: 10px; border: none; background: #111827; color: #fff; font-size: 16px; cursor: pointer; }
-button:active { transform: translateY(1px); }
-.result { margin-top: 12px; padding: 10px; background: #f3f4f6; border-radius: 10px; min-height: 22px; }
+.container { max-width: 800px; margin: auto; font-family: Arial; }
+.card { background: #fff; padding: 16px; margin: 12px 0; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,.1); }
+.hidden { display: none; }
+input, select { display:block; margin:6px 0; padding:8px; width:100%; }
+button { margin:6px 4px; padding:8px 12px; cursor:pointer; }
+.result { background:#f3f4f6; padding:10px; border-radius:6px; margin-top:10px; }
