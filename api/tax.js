@@ -1,38 +1,122 @@
 // api/tax.js
-export default function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({error:'Use POST'});
-  const { type, payload } = req.body||{};
+// Serverless API (Vercel Function) untuk PPN & PPh21 detail + BPJS.
+// Catatan: Simulasi untuk edukasi. Verifikasi aturan terbaru jika untuk produksi.
+export default function handler(req, res){
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Use POST' });
+  try{
+    const { type, payload } = req.body || {};
+    if (!type) return res.status(400).json({ error: 'Missing type' });
 
-  if (type === 'ppn') {
-    const {price=0, rate=0.11} = payload||{};
-    const tax = price*rate, total=price+tax;
-    return res.status(200).json({kind:'ppn', price, rate, tax, total});
+    if (type === 'ppn'){
+      const { price = 0, rate = 0.11 } = payload || {};
+      const base = num(price);
+      const r = num(rate);
+      if (!Number.isFinite(base) || base < 0) return res.status(400).json({ error:'Invalid price' });
+      if (!Number.isFinite(r) || r < 0) return res.status(400).json({ error:'Invalid rate' });
+      const tax = round2(base * r);
+      const total = round2(base + tax);
+      return res.status(200).json({ kind:'ppn', price: base, rate: r, tax, total });
+    }
+
+    if (type === 'pph21_detailed'){
+      const {
+        gajiPokok = 0, tunjTetap = 0, tunjLain = 0, thr = 0,
+        statusKawin = 'TK', tanggungan = 0
+      } = payload || {};
+
+      const base = num(gajiPokok) + num(tunjTetap) + num(tunjLain); // bruto/bln
+      const baseBPJS = num(gajiPokok) + num(tunjTetap); // dasar iuran: gaji pokok + tunjangan tetap
+
+      // BPJS Kesehatan (pegawai 1%) cap upah 12.000.000
+      const capKes = 12000000;
+      const bpjsKesEmployee = round2(Math.min(baseBPJS, capKes) * 0.01);
+
+      // JHT 2% (tanpa batas), JP 1% (cap 10.547.400)
+      const jhtEmployee = round2(baseBPJS * 0.02);
+      const capJP = 10547400;
+      const jpEmployee = round2(Math.min(baseBPJS, capJP) * 0.01);
+
+      // Biaya jabatan 5% maks 500.000/bln (6.000.000/thn)
+      const jobExpenseMonthly = Math.min(base * 0.05, 500000);
+
+      // Tahunan
+      const grossAnnual = round2(base * 12 + num(thr));
+      const jobExpenseAnnual = Math.min(round2(base * 12 * 0.05), 6000000);
+      const pensionContribsAnnual = round2((jhtEmployee + jpEmployee) * 12);
+      const netAnnual = Math.max(0, round2(grossAnnual - jobExpenseAnnual - pensionContribsAnnual));
+
+      // PTKP
+      const ptkp = getPTKP(statusKawin, tanggungan);
+
+      // PKP (dibulatkan ke bawah ke ribuan)
+      let pkp = Math.max(0, netAnnual - ptkp);
+      pkp = Math.floor(pkp / 1000) * 1000;
+
+      // PPh21 tahunan
+      const pphAnnual = calcPPhAnnual(pkp);
+
+      // Bulanan estimasi
+      const pphMonthly = round2(pphAnnual / 12);
+
+      // Take Home Pay/bln
+      const takeHomeMonthly = round2(base - jobExpenseMonthly - bpjsKesEmployee - jhtEmployee - jpEmployee - pphMonthly);
+
+      return res.status(200).json({
+        kind:'pph21_detailed',
+        monthly:{
+          gross: round2(base),
+          jobExpense: round2(jobExpenseMonthly),
+          bpjs_kes_employee: bpjsKesEmployee,
+          jht_employee: jhtEmployee,
+          jp_employee: jpEmployee,
+          pph21: pphMonthly,
+          takeHome: takeHomeMonthly
+        },
+        annual:{
+          gross: grossAnnual,
+          neto: netAnnual,
+          ptkp: ptkp,
+          pkp: pkp,
+          pph21: pphAnnual
+        },
+        meta:{
+          caps:{ bpjsKesCap: capKes, jpCap: capJP },
+          params:{ statusKawin, tanggungan }
+        }
+      });
+    }
+
+    return res.status(400).json({ error: 'Unsupported type' });
+  } catch(e){
+    return res.status(500).json({ error: 'Server error' });
   }
+}
 
-  if (type === 'pph21_adv') {
-    const { gajiPokok=0, tunjTetap=0, tunjLain=0, thr=0, statusKawin='TK', tanggungan=0 } = payload||{};
-    const base = gajiPokok+tunjTetap+tunjLain;
-    const baseBPJS = gajiPokok+tunjTetap;
-    const bpjsKes = Math.min(baseBPJS,12000000)*0.01;
-    const jht = baseBPJS*0.02;
-    const jp = Math.min(baseBPJS,10547400)*0.01;
-    const jobExpM = Math.min(base*0.05,500000);
-    const grossAnnual = base*12+thr;
-    const jobExpA = Math.min(base*12*0.05,6000000);
-    const netAnnual = grossAnnual-jobExpA-(jht+jp)*12;
-    const ptkp = 54000000+(statusKawin==='K'?4500000:0)+Math.min(3,tanggungan)*4500000;
-    let pkp=Math.max(0,netAnnual-ptkp); pkp=Math.floor(pkp/1000)*1000;
-    let tax=0,rem=pkp,last=0;
-    const layers=[{u:60000000,r:0.05},{u:250000000,r:0.15},{u:500000000,r:0.25},{u:5000000000,r:0.30},{u:Infinity,r:0.35}];
-    for(const l of layers){const slice=Math.max(0,Math.min(rem,l.u-last));tax+=slice*l.r;rem-=slice;last=l.u;if(rem<=0)break;}
-    const pphAnnual=Math.round(tax);
-    const pphMonthly=Math.round(pphAnnual/12);
-    const takeHome=base-jobExpM-bpjsKes-jht-jp-pphMonthly;
-    return res.status(200).json({kind:'pph21_adv',
-      monthly:{gross:base,jobExpense:jobExpM,bpjs_kes_employee:bpjsKes,jht_employee:jht,jp_employee:jp,pph21:pphMonthly,takeHome},
-      annual:{gross:grossAnnual,jobExpense:jobExpA,ptkp,pkp,pph21:pphAnnual}
-    });
+// Helpers
+function num(n){ const x = Number(n); return Number.isFinite(x) ? x : 0; }
+function round2(n){ return Math.round((n + Number.EPSILON) * 100) / 100; }
+
+function getPTKP(statusKawin, tanggungan=0){
+  const base = 54000000;
+  const married = (statusKawin === 'K') ? 4500000 : 0;
+  const deps = Math.max(0, Math.min(3, Number(tanggungan)||0)) * 4500000;
+  return base + married + deps;
+}
+function calcPPhAnnual(pkp){
+  const layers = [
+    { upTo:  60000000, rate: 0.05 },
+    { upTo: 250000000, rate: 0.15 },
+    { upTo: 500000000, rate: 0.25 },
+    { upTo:5000000000, rate: 0.30 },
+    { upTo:       Infinity, rate: 0.35 }
+  ];
+  let tax = 0, last = 0, remaining = pkp;
+  for(const l of layers){
+    const slice = Math.max(0, Math.min(remaining, l.upTo - last));
+    tax += slice * l.rate;
+    remaining -= slice;
+    last = l.upTo;
+    if (remaining <= 0) break;
   }
-
-  return res.status(400).json({error:'Unsupported type'});
+  return round2(tax);
 }

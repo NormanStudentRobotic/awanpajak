@@ -3,73 +3,134 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AwanPajak – Kalkulator Pajak + Firestore</title>
+  <title>AwanPajak – Lengkap (Auth + Firestore + PPN/PPh + PDF)</title>
   <link rel="stylesheet" href="style.css" />
+  <!-- Export PDF -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
   <div class="container">
     <h1>AwanPajak</h1>
-    <p class="subtitle">Login + Kalkulator PPh/PPN + Simpan Firestore + Export PDF</p>
+    <p class="subtitle">Login + Kalkulator PPN/PPh (detail) + Simpan ke Firestore + Riwayat + Export PDF</p>
 
-    <!-- Auth -->
+    <!-- AUTH SECTION -->
     <div id="auth-section" class="card">
       <h2>Login / Daftar</h2>
-      <input id="email" type="email" placeholder="Email" />
-      <input id="password" type="password" placeholder="Password" />
-      <button id="btn-login">Login</button>
-      <button id="btn-signup">Create Account</button>
+      <label>Email</label>
+      <input id="email" type="email" placeholder="nama@email.com" />
+      <label>Password</label>
+      <input id="password" type="password" placeholder="********" />
+      <div class="row">
+        <button id="btn-login">Login</button>
+        <button id="btn-signup" class="btn-secondary">Create Account</button>
+      </div>
+      <p class="muted">Gunakan email & password untuk masuk. Akun dikelola oleh Firebase Authentication.</p>
     </div>
 
-    <!-- App -->
+    <!-- APP SECTION -->
     <div id="app-section" class="card hidden">
       <div class="topbar">
-        <span id="userbox"></span>
-        <button id="btn-signout">Logout</button>
+        <div>
+          <span class="muted">Masuk sebagai</span>
+          <b id="userbox"></b>
+        </div>
+        <div class="row">
+          <button id="btn-signout" class="btn-danger">Logout</button>
+        </div>
       </div>
 
-      <h3>Kalkulator</h3>
+      <h3>Kalkulator Pajak</h3>
+
+      <!-- PILIH JENIS -->
       <label>Jenis Perhitungan</label>
       <select id="taxType">
         <option value="ppn">PPN</option>
-        <option value="pph21_adv" selected>PPh (BPJS+PTKP)</option>
+        <option value="pph21_detailed" selected>PPh (BPJS + PTKP, detail)</option>
       </select>
 
+      <!-- FORM PPN -->
       <div id="ppnFields" class="hidden">
-        <input id="ppn-price" type="number" placeholder="Harga" />
-        <input id="ppn-rate" type="number" step="0.01" placeholder="Tarif (default 0.11)" />
+        <div class="grid-2">
+          <div>
+            <label>Harga (Rp)</label>
+            <input id="ppn-price" type="number" placeholder="contoh: 100000" />
+          </div>
+          <div>
+            <label>Tarif PPN (opsional, 0.11 = 11%)</label>
+            <input id="ppn-rate" type="number" step="0.01" placeholder="kosongkan untuk 11%" />
+          </div>
+        </div>
+        <p class="hint">Default tarif PPN: 11%.</p>
       </div>
 
+      <!-- FORM PPH DETAIL -->
       <div id="pphFields">
-        <input id="gajiPokok" type="number" placeholder="Gaji Pokok /bln" />
-        <input id="tunjTetap" type="number" placeholder="Tunjangan Tetap /bln" />
-        <input id="tunjLain" type="number" placeholder="Tunjangan Lain /bln" />
-        <input id="thr" type="number" placeholder="THR /thn" />
-        <select id="statusKawin">
-          <option value="TK">Tidak Kawin</option>
-          <option value="K">Kawin</option>
-        </select>
-        <select id="tanggungan">
-          <option value="0">0</option><option value="1">1</option>
-          <option value="2">2</option><option value="3">3</option>
-        </select>
+        <div class="grid-2">
+          <div>
+            <label>Gaji Pokok (per bulan)</label>
+            <input id="gajiPokok" type="number" placeholder="contoh: 7000000" />
+          </div>
+          <div>
+            <label>Tunjangan Tetap (per bulan)</label>
+            <input id="tunjTetap" type="number" placeholder="contoh: 1000000" />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div>
+            <label>Tunjangan Lain (kena pajak, per bulan)</label>
+            <input id="tunjLain" type="number" placeholder="contoh: 500000" />
+          </div>
+          <div>
+            <label>THR (opsional, setahun)</label>
+            <input id="thr" type="number" placeholder="contoh: 7000000" />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div>
+            <label>Status Kawin</label>
+            <select id="statusKawin">
+              <option value="TK">Tidak Kawin (TK)</option>
+              <option value="K">Kawin (K)</option>
+            </select>
+          </div>
+          <div>
+            <label>Jumlah Tanggungan (0–3)</label>
+            <select id="tanggungan">
+              <option>0</option><option>1</option><option>2</option><option>3</option>
+            </select>
+          </div>
+        </div>
+        <p class="hint">
+          Dasar BPJS = gaji pokok + tunjangan <b>tetap</b>. Potongan pegawai: BPJS Kesehatan 1% (cap upah Rp12jt), JHT 2%,
+          JP 1% (cap upah Rp10.547.400). Biaya jabatan 5% (maks Rp500rb/bln, Rp6jt/thn). PTKP = 54jt + kawin 4.5jt + 4.5jt/tanggungan (maks 3).
+        </p>
       </div>
 
-      <button id="btn-calc">Hitung</button>
-      <button id="btn-save">Simpan ke Database</button>
-      <button id="btn-pdf">Export PDF</button>
-      <button id="btn-history">Lihat Riwayat</button>
+      <div class="row">
+        <button id="btn-calc">Hitung</button>
+        <button id="btn-save" class="btn-secondary">Simpan ke Database</button>
+        <button id="btn-history" class="btn-secondary">Lihat Riwayat</button>
+        <button id="btn-pdf" class="btn-outline">Export PDF</button>
+      </div>
 
       <div id="result" class="result">—</div>
       <div id="history" class="card hidden"></div>
     </div>
   </div>
 
+  <!-- APP SCRIPT (Modules) -->
   <script type="module">
+    // Firebase SDKs (modular)
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-    import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import {
+      getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
+      signInWithEmailAndPassword, signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import {
+      getFirestore, collection, addDoc, getDocs, serverTimestamp, query, orderBy
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
+    // === GANTI DENGAN CONFIG MILIKMU ===
     const firebaseConfig = {
 		apiKey: "AIzaSyA-Gve2lH2Hiqxf8f8O68XVM55zyZrzzfk",
 		authDomain: "awanpajak-d84e3.firebaseapp.com",
@@ -83,11 +144,13 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    const $ = (s) => document.querySelector(s);
-    const fmtIDR = (n) => (n ?? 0).toLocaleString('id-ID');
+    // Helper DOM
+    const $ = (s)=>document.querySelector(s);
+    const fmtIDR = (n)=> (n ?? 0).toLocaleString('id-ID');
 
-    function toggleFields() {
-      if ($('#taxType').value === 'ppn') {
+    // Toggle PPN/PPh form
+    function toggleFields(){
+      if ($('#taxType').value === 'ppn'){
         $('#ppnFields').classList.remove('hidden');
         $('#pphFields').classList.add('hidden');
       } else {
@@ -98,24 +161,64 @@
     $('#taxType').addEventListener('change', toggleFields);
     toggleFields();
 
-    async function callAPI(body) {
+    // Call API
+    async function callAPI(body){
       const res = await fetch('/api/tax', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
+        method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify(body)
       });
-      return await res.json();
+      const data = await res.json();
+      if(!res.ok){ throw new Error(data.error || 'Server error'); }
+      return data;
+    }
+
+    // Render hasil/detail
+    function renderPPN(data){
+      $('#result').innerHTML = `
+        <h3>Rincian PPN</h3>
+        <ul>
+          <li>Harga: Rp${fmtIDR(data.price)}</li>
+          <li>Tarif PPN: ${(data.rate*100).toFixed(2)}%</li>
+          <li><b>PPN: Rp${fmtIDR(data.tax)}</b></li>
+          <li><b>Total: Rp${fmtIDR(data.total)}</b></li>
+        </ul>
+      `;
+    }
+    function renderPPhDetail(data){
+      $('#result').innerHTML = `
+        <h3>Rincian Bulanan</h3>
+        <ul>
+          <li>Bruto bulanan: Rp${fmtIDR(data.monthly.gross)}</li>
+          <li>Biaya jabatan: Rp${fmtIDR(data.monthly.jobExpense)}</li>
+          <li>BPJS Kesehatan (1%): Rp${fmtIDR(data.monthly.bpjs_kes_employee)}</li>
+          <li>JHT (2%): Rp${fmtIDR(data.monthly.jht_employee)}</li>
+          <li>JP (1%): Rp${fmtIDR(data.monthly.jp_employee)}</li>
+          <li>PPh21 bulanan: <b>Rp${fmtIDR(data.monthly.pph21)}</b></li>
+          <li><b>Total Take Home Pay: Rp${fmtIDR(data.monthly.takeHome)}</b></li>
+        </ul>
+        <h3>Rincian Tahunan</h3>
+        <ul>
+          <li>Bruto setahun: Rp${fmtIDR(data.annual.gross)}</li>
+          <li>Neto setahun: Rp${fmtIDR(data.annual.neto)}</li>
+          <li>PTKP: Rp${fmtIDR(data.annual.ptkp)}</li>
+          <li>PKP: Rp${fmtIDR(data.annual.pkp)}</li>
+          <li><b>PPh21 setahun: Rp${fmtIDR(data.annual.pph21)}</b></li>
+        </ul>
+      `;
     }
 
     let lastResult = null;
+    let lastInput = null;
 
-    $('#btn-calc').addEventListener('click', async () => {
-      if ($('#taxType').value === 'ppn') {
-        const price = Number($('#ppn-price').value);
-        const rate = Number($('#ppn-rate').value || 0.11);
-        const data = await callAPI({ type: 'ppn', payload: { price, rate } });
+    // Hitung
+    async function handleCalc(){
+      if ($('#taxType').value === 'ppn'){
+        const price = Number($('#ppn-price').value || 0);
+        const rate = $('#ppn-rate').value ? Number($('#ppn-rate').value) : 0.11;
+        const data = await callAPI({ type:'ppn', payload:{ price, rate } });
         lastResult = data;
-        $('#result').textContent = `Harga: Rp${fmtIDR(data.price)} | PPN: Rp${fmtIDR(data.tax)} | Total: Rp${fmtIDR(data.total)}`;
+        lastInput = { kind:'ppn', price, rate };
+        renderPPN(data);
       } else {
         const payload = {
           gajiPokok: Number($('#gajiPokok').value || 0),
@@ -125,63 +228,101 @@
           statusKawin: $('#statusKawin').value,
           tanggungan: Number($('#tanggungan').value || 0)
         };
-        const data = await callAPI({ type: 'pph21_adv', payload });
+        const data = await callAPI({ type:'pph21_detailed', payload });
         lastResult = data;
-        $('#result').innerHTML = `Take Home Pay/bln: <b>Rp${fmtIDR(data.monthly.takeHome)}</b><br/>PPh21/bln: Rp${fmtIDR(data.monthly.pph21)}`;
+        lastInput = { kind:'pph21_detailed', ...payload };
+        renderPPhDetail(data);
       }
-    });
+    }
 
-    $('#btn-save').addEventListener('click', async () => {
+    // Simpan ke Firestore
+    async function handleSave(){
       const user = auth.currentUser;
-      if (!user) return alert("Harus login dulu");
-      if (!lastResult) return alert("Hitung dulu sebelum simpan");
+      if(!user) return alert('Harus login dulu.');
+      if(!lastResult) return alert('Hitung dulu sebelum menyimpan.');
       try {
-        await addDoc(collection(db, "users", user.uid, "perhitungan"), {
-          ...lastResult,
-          timestamp: new Date()
+        const ref = collection(db, 'users', user.uid, 'perhitungan');
+        await addDoc(ref, {
+          input: lastInput,
+          result: lastResult,
+          createdAt: serverTimestamp()
         });
-        alert("Berhasil disimpan ke Firestore");
-      } catch(e) { alert("Gagal simpan: "+e.message); }
-    });
+        alert('Data berhasil disimpan ✔');
+      } catch(e){
+        alert('Gagal simpan: ' + (e?.message || e));
+      }
+    }
 
-    $('#btn-history').addEventListener('click', async () => {
+    // Tampilkan riwayat
+    async function handleHistory(){
       const user = auth.currentUser;
-      if (!user) return alert("Harus login dulu");
-      const snap = await getDocs(collection(db, "users", user.uid, "perhitungan"));
-      let html = "<h3>Riwayat</h3><ul>";
-      snap.forEach(doc => {
-        const d = doc.data();
-        html += `<li>${d.kind || ''} - THP/bln: Rp${fmtIDR(d.monthly?.takeHome||0)}</li>`;
+      if(!user) return alert('Harus login dulu.');
+      const ref = collection(db, 'users', user.uid, 'perhitungan');
+      const q = query(ref, orderBy('createdAt', 'desc'));
+      const snap = await getDocs(q);
+      if (snap.empty){
+        $('#history').innerHTML = '<h3>Riwayat</h3><p class="muted">Belum ada data tersimpan.</p>';
+        $('#history').classList.remove('hidden');
+        return;
+      }
+      let html = '<h3>Riwayat</h3><table class="table"><thead><tr><th>Tanggal</th><th>Jenis</th><th>Ringkasan</th></tr></thead><tbody>';
+      snap.forEach(d=>{
+        const doc = d.data();
+        const kind = doc.input?.kind || doc.result?.kind || '-';
+        const ts = doc.createdAt?.toDate ? doc.createdAt.toDate() : (doc.createdAt || new Date());
+        const dateStr = new Date(ts).toLocaleString('id-ID');
+        let summary = '';
+        if (kind === 'ppn'){
+          summary = `Total: Rp${fmtIDR(doc.result?.total||0)}`;
+        } else {
+          summary = `THP/bln: Rp${fmtIDR(doc.result?.monthly?.takeHome||0)}, PPh/bln: Rp${fmtIDR(doc.result?.monthly?.pph21||0)}`;
+        }
+        html += `<tr><td>${dateStr}</td><td>${kind}</td><td>${summary}</td></tr>`;
       });
-      html += "</ul>";
+      html += '</tbody></table>';
       $('#history').innerHTML = html;
       $('#history').classList.remove('hidden');
-    });
+    }
 
-    $('#btn-pdf').addEventListener('click', () => {
-      if (!lastResult) return alert("Hitung dulu sebelum export");
-      html2pdf().from(document.querySelector('#result')).save("hasil-pajak.pdf");
-    });
+    // Export PDF
+    function handlePDF(){
+      if (!lastResult) return alert('Hitung dulu sebelum export.');
+      html2pdf().from(document.querySelector('#result')).save('hasil-pajak.pdf');
+    }
 
-    // Auth events
-    $('#btn-login').addEventListener('click', async () => {
+    // Bind events (sekali)
+    function bindAppEventsOnce(){
+      if (window.__boundApp) return;
+      $('#taxType').addEventListener('change', toggleFields);
+      $('#btn-calc').addEventListener('click', handleCalc);
+      $('#btn-save').addEventListener('click', handleSave);
+      $('#btn-history').addEventListener('click', handleHistory);
+      $('#btn-pdf').addEventListener('click', handlePDF);
+      window.__boundApp = true;
+    }
+
+    // Auth buttons
+    $('#btn-login').addEventListener('click', async ()=>{
       try { await signInWithEmailAndPassword(auth, $('#email').value, $('#password').value); }
-      catch(e){ alert("Login gagal: "+e.message); }
+      catch(e){ alert('Login gagal: ' + (e?.message || e)); }
     });
-    $('#btn-signup').addEventListener('click', async () => {
+    $('#btn-signup').addEventListener('click', async ()=>{
       try { await createUserWithEmailAndPassword(auth, $('#email').value, $('#password').value); }
-      catch(e){ alert("Signup gagal: "+e.message); }
+      catch(e){ alert('Signup gagal: ' + (e?.message || e)); }
     });
-    $('#btn-signout').addEventListener('click', () => signOut(auth));
+    $('#btn-signout').addEventListener('click', ()=> signOut(auth));
 
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
+    // Auth state
+    onAuthStateChanged(auth, (user)=>{
+      if (user){
         $('#auth-section').classList.add('hidden');
         $('#app-section').classList.remove('hidden');
         $('#userbox').textContent = user.email;
+        bindAppEventsOnce();
       } else {
         $('#auth-section').classList.remove('hidden');
         $('#app-section').classList.add('hidden');
+        $('#userbox').textContent = '';
       }
     });
   </script>
